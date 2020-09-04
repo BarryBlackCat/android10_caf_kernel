@@ -714,47 +714,6 @@ static int sec_ts_i2c_read_bulk(struct sec_ts_data *ts, u8 *data, int len)
 	return -EIO;
 }
 
-#if defined(CONFIG_TOUCHSCREEN_DUMP_MODE)
-#include <linux/sec_debug.h>
-extern struct tsp_dump_callbacks dump_callbacks;
-static struct delayed_work *p_ghost_check;
-
-static void sec_ts_check_rawdata(struct work_struct *work)
-{
-	struct sec_ts_data *ts = container_of(work, struct sec_ts_data, ghost_check.work);
-
-	if (ts->tsp_dump_lock == 1) {
-		input_err(true, &ts->client->dev, "%s: ignored ## already checking..\n", __func__);
-		return;
-	}
-	if (ts->power_status == SEC_TS_STATE_POWER_OFF) {
-		input_err(true, &ts->client->dev, "%s: ignored ## IC is power off\n", __func__);
-		return;
-	}
-
-	sec_ts_run_rawdata_all(ts, true);
-}
-
-static void dump_tsp_log(void)
-{
-	pr_info("%s: %s %s: start\n", SEC_TS_I2C_NAME, SECLOG, __func__);
-
-#ifdef CONFIG_BATTERY_SAMSUNG
-	if (lpcharge == 1) {
-		pr_err("%s: %s %s: ignored ## lpm charging Mode!!\n", SEC_TS_I2C_NAME, SECLOG, __func__);
-		return;
-	}
-#endif
-
-	if (p_ghost_check == NULL) {
-		pr_err("%s: %s %s: ignored ## tsp probe fail!!\n", SEC_TS_I2C_NAME, SECLOG, __func__);
-		return;
-	}
-	schedule_delayed_work(p_ghost_check, msecs_to_jiffies(100));
-}
-#endif
-
-
 void sec_ts_delay(unsigned int ms)
 {
 	if (ms < 20)
@@ -2042,12 +2001,6 @@ static int sec_ts_probe(struct i2c_client *client, const struct i2c_device_id *i
 
 	schedule_delayed_work(&ts->work_read_info, msecs_to_jiffies(5000));
 
-#if defined(CONFIG_TOUCHSCREEN_DUMP_MODE)
-	dump_callbacks.inform_dump = dump_tsp_log;
-	INIT_DELAYED_WORK(&ts->ghost_check, sec_ts_check_rawdata);
-	p_ghost_check = &ts->ghost_check;
-#endif
-
 	ts_dup = ts;
 
 	ts->probe_done = true;
@@ -2095,9 +2048,6 @@ error_allocate_pdata:
 	if (ret == -ECONNREFUSED)
 		sec_ts_delay(100);
 	ret = -ENODEV;
-#ifdef CONFIG_TOUCHSCREEN_DUMP_MODE
-	p_ghost_check = NULL;
-#endif
 	ts_dup = NULL;
 #ifdef CONFIG_TRUSTONIC_TRUSTED_UI
 	tsp_info = NULL;
@@ -2358,9 +2308,6 @@ static int sec_ts_remove(struct i2c_client *client)
 
 	sec_ts_fn_remove(ts);
 
-#ifdef CONFIG_TOUCHSCREEN_DUMP_MODE
-	p_ghost_check = NULL;
-#endif
 	device_init_wakeup(&client->dev, false);
 	wake_lock_destroy(&ts->wakelock);
 

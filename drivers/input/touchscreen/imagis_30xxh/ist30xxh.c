@@ -1743,56 +1743,6 @@ early_param("bootmode", get_bootmode);
 
 extern int get_lcd_attached(char *mode);
 
-#if defined(CONFIG_TOUCHSCREEN_DUMP_MODE)
-#include <linux/sec_debug.h>
-extern struct tsp_dump_callbacks dump_callbacks;
-static struct delayed_work *p_ghost_check;
-
-static void ist30xx_check_rawdata(struct work_struct *work)
-{
-    struct ist30xx_data *data = container_of(work, struct ist30xx_data, ghost_check.work);
-
-    if (data->tsp_dump_lock == 1) {
-        input_info(true, &data->client->dev, "%s: ignored ## already checking..\n", __func__);
-        return;
-    }
-    if (data->status.power == 0) {
-        input_info(true, &data->client->dev, "%s: ignored ## IC is power off\n", __func__);
-        return;
-    }
-
-    data->tsp_dump_lock = 1;
-    input_raw_data_clear();
-    input_raw_info(true, &data->client->dev, "%s: start ##\n", __func__);
-    ist30xx_display_dump_log(data);
-    msleep(100);
-
-    input_raw_info(true, &data->client->dev, "%s: done ##\n", __func__);
-    data->tsp_dump_lock = 0;
-}
-
-static void dump_tsp_log(void)
-{
-#ifdef CONFIG_BATTERY_SAMSUNG
-    extern int poweroff_charging;
-#endif
-
-    tsp_info("%s: start\n", __func__);
-
-#ifdef CONFIG_BATTERY_SAMSUNG	
-    if (poweroff_charging == 1) {
-        tsp_info("%s: ignored ## lpm charging Mode!!\n",__func__);
-        return;
-    }
-#endif
-
-    if (p_ghost_check == NULL) {
-        tsp_info("%s: ignored ## tsp probe fail!!\n", __func__);
-        return;
-    }
-    schedule_delayed_work(p_ghost_check, msecs_to_jiffies(100));
-}
-#endif
 
 static int ist30xx_probe(struct i2c_client *client,
         const struct i2c_device_id *id)
@@ -2070,12 +2020,6 @@ static int ist30xx_probe(struct i2c_client *client,
 #ifdef TCLM_CONCEPT
 	schedule_delayed_work(&data->work_tclm_initialize, msecs_to_jiffies(5000));
 #endif
-#if defined(CONFIG_TOUCHSCREEN_DUMP_MODE)
-    dump_callbacks.inform_dump = dump_tsp_log;
-    INIT_DELAYED_WORK(&data->ghost_check, ist30xx_check_rawdata);
-    p_ghost_check = &data->ghost_check;
-    schedule_delayed_work(p_ghost_check, msecs_to_jiffies(6000));
-#endif
 
     input_info(true, &client->dev, "### IMAGIS probe success ###\n");
 #ifdef USE_OPEN_CLOSE
@@ -2114,9 +2058,6 @@ err_pinctrl:
     }
 #ifdef CONFIG_OF
 err_alloc_dev:
-#endif
-#ifdef CONFIG_TOUCHSCREEN_DUMP_MODE
-    p_ghost_check = NULL;
 #endif
     kfree(data);
     input_err(true, &client->dev, "Error, ist30xx init driver\n");

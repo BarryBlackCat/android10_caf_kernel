@@ -109,12 +109,6 @@ static void fts_reset(struct fts_ts_info *info, unsigned int ms);
 static void fts_reset_work(struct work_struct *work);
 static void fts_read_info_work(struct work_struct *work);
 
-#if defined(CONFIG_TOUCHSCREEN_DUMP_MODE)
-#include <linux/sec_debug.h>
-void tsp_dump(void);
-static void dump_tsp_rawdata(struct work_struct *work);
-struct delayed_work *p_debug_work;
-#endif
 
 #if (!defined(CONFIG_PM)) && !defined(USE_OPEN_CLOSE)
 static int fts_suspend(struct i2c_client *client, pm_message_t mesg);
@@ -2723,12 +2717,6 @@ static int fts_probe(struct i2c_client *client, const struct i2c_device_id *idp)
 
 	schedule_delayed_work(&info->work_read_info, msecs_to_jiffies(5 * MSEC_PER_SEC));
 
-#if defined(CONFIG_TOUCHSCREEN_DUMP_MODE)
-	dump_callbacks.inform_dump = tsp_dump;
-	INIT_DELAYED_WORK(&info->debug_work, dump_tsp_rawdata);
-	p_debug_work = &info->debug_work;
-#endif
-
 	input_err(true, &info->client->dev, "%s: done\n", __func__);
 	input_log_fix();
 
@@ -3139,46 +3127,6 @@ void trustedui_mode_on(void)
 {
 	input_info(true, &tui_tsp_info->client->dev, "%s, release all finger..", __func__);
 	fts_release_all_finger(tui_tsp_info);
-}
-#endif
-
-#ifdef CONFIG_TOUCHSCREEN_DUMP_MODE
-static void dump_tsp_rawdata(struct work_struct *work)
-{
-	struct fts_ts_info *info = container_of(work, struct fts_ts_info,
-			debug_work.work);
-	int i;
-
-	if (info->rawdata_read_lock == true)
-		input_err(true, &info->client->dev, "%s: ## checking.. ignored.\n", __func__);
-
-	info->rawdata_read_lock = true;
-	input_info(true, &info->client->dev, "%s: ## run CX data ##, %d\n", __func__, __LINE__);
-	run_cx_data_read((void *)&info->sec);
-
-	for (i = 0; i < 5; i++) {
-		input_info(true, &info->client->dev, "%s: ## run Raw Cap data ##, %d\n", __func__, __LINE__);
-		run_rawcap_read((void *)&info->sec);
-
-		input_info(true, &info->client->dev, "%s: ## run Delta ##, %d\n", __func__, __LINE__);
-		run_delta_read((void *)&info->sec);
-		fts_delay(50);
-	}
-	input_info(true, &info->client->dev, "%s: ## Done ##, %d\n", __func__, __LINE__);
-
-	info->rawdata_read_lock = false;
-}
-
-void tsp_dump(void)
-{
-#ifdef CONFIG_BATTERY_SAMSUNG
-	if (lpcharge)
-		return;
-#endif
-	if (!p_debug_work)
-		return;
-	pr_err("%s: %s %s: start\n", FTS_TS_DRV_NAME, SECLOG, __func__);
-	schedule_delayed_work(p_debug_work, msecs_to_jiffies(100));
 }
 #endif
 

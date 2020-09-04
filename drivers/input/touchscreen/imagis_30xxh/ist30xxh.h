@@ -614,10 +614,6 @@ struct ist30xx_data {
 #ifdef IST30XX_USE_KEY
     bool tkey_pressed[IST30XX_MAX_KEYS];
 #endif
-#ifdef CONFIG_TOUCHSCREEN_DUMP_MODE
-    struct delayed_work ghost_check;
-    u8 tsp_dump_lock;
-#endif
     u32 cdc_addr;
     u32 self_cdc_addr;
     u32 rec_addr;

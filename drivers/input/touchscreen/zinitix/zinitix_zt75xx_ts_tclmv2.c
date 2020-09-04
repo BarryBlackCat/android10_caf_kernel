@@ -9142,48 +9142,6 @@ static void bt532_run_rawdata(struct bt532_ts_info *info)
 	info->tsp_dump_lock = 0;
 }
 
-#if defined(CONFIG_TOUCHSCREEN_DUMP_MODE)
-#include <linux/sec_debug.h>
-extern struct tsp_dump_callbacks dump_callbacks;
-static struct delayed_work *p_ghost_check;
-
-static void bt532_check_rawdata(struct work_struct *work)
-{
-	struct bt532_ts_info *info = container_of(work, struct bt532_ts_info,
-			ghost_check.work);
-
-	if (info->tsp_dump_lock == 1) {
-		input_info(true, &info->client->dev, "%s: ignored ## already checking..\n", __func__);
-		return;
-	}
-
-	if (info->tsp_pwr_enabled == POWER_OFF) {
-		input_info(true, &info->client->dev, "%s: ignored ## IC is power off\n", __func__);
-		return;
-	}
-
-	bt532_run_rawdata(info);
-}
-
-static void dump_tsp_log(void)
-{
-	pr_info("%s: %s %s: start\n", BT532_TS_DEVICE, SECLOG, __func__);
-
-#ifdef CONFIG_BATTERY_SAMSUNG
-	if (lpcharge == 1) {
-		pr_err("%s: %s %s: ignored ## lpm charging Mode!!\n", BT532_TS_DEVICE, SECLOG, __func__);
-		return;
-	}
-#endif
-
-	if (p_ghost_check == NULL) {
-		pr_err("%s: %s %s: ignored ## tsp probe fail!!\n", BT532_TS_DEVICE, SECLOG, __func__);
-		return;
-	}
-	schedule_delayed_work(p_ghost_check, msecs_to_jiffies(100));
-}
-#endif
-
 static void zt_read_info_work(struct work_struct *work)
 {
 	struct bt532_ts_info *info = container_of(work, struct bt532_ts_info,
@@ -9521,11 +9479,6 @@ static int bt532_ts_probe(struct i2c_client *client,
 
 	schedule_delayed_work(&info->work_read_info, msecs_to_jiffies(5000));
 
-#if defined(CONFIG_TOUCHSCREEN_DUMP_MODE)
-	dump_callbacks.inform_dump = dump_tsp_log;
-	INIT_DELAYED_WORK(&info->ghost_check, bt532_check_rawdata);
-	p_ghost_check = &info->ghost_check;
-#endif
 
 	input_log_fix();
 	return 0;
@@ -9566,9 +9519,6 @@ err_no_platform_data:
 	if (IS_ENABLED(CONFIG_OF))
 		devm_kfree(&client->dev, (void *)pdata);
 
-#ifdef CONFIG_TOUCHSCREEN_DUMP_MODE
-		p_ghost_check = NULL;
-#endif
 	input_info(true, &client->dev, "Failed to probe\n");
 	input_log_fix();
 	return ret;
@@ -9590,10 +9540,6 @@ static int bt532_ts_remove(struct i2c_client *client)
 #ifdef SEC_FACTORY_TEST
 	sec_cmd_exit(&info->sec, SEC_CLASS_DEVT_TSP);
 	kfree(info->raw_data);
-#endif
-
-#ifdef CONFIG_TOUCHSCREEN_DUMP_MODE
-	p_ghost_check = NULL;
 #endif
 
 #if ESD_TIMER_INTERVAL

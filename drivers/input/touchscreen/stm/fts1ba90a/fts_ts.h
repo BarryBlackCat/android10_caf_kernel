@@ -809,8 +809,5 @@ extern int haptic_homekey_release(void);
 extern void fts_set_grip_data_to_ic(struct fts_ts_info *info, u8 flag);
 extern void fts_set_grip_type(struct fts_ts_info *info, u8 set_type);
 
-#ifdef CONFIG_TOUCHSCREEN_DUMP_MODE
-extern struct tsp_dump_callbacks dump_callbacks;
-#endif
 
 #endif /* _LINUX_FTS_TS_H_ */
